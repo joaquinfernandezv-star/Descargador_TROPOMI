@@ -60,3 +60,7 @@ Los resultados se guardan automáticamente en la carpeta `Resultados/`, organiza
 3.  **Tipo de Producto** (Modelo NO2, BLH, Cálculos de Concentración)
 
 Cada ejecución genera mapas (`.png`), estadísticas (`.csv`) y los archivos ráster procesados.
+
+## 🔗 Acceso a Resultados en la Nube
+Puedes visualizar y descargar los ejemplos de resultados procesados en el siguiente enlace:
+👉 [Ver Carpeta de Resultados en Google Drive](https://drive.google.com/drive/folders/1L0KB46bhG3BF9sIIjKRkHEh8tWrlT_Y4?usp=sharing)
