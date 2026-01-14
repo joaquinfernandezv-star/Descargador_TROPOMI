@@ -90,14 +90,14 @@ except Exception as e:
 # --- DEFINICIONES Y CONSTANTES ---
 data_5p = DataCollection.SENTINEL5P.define_from("5p", service_url=config.sh_base_url)
 
-# --- Evalscript SIMPLE (Original) ---
+# --- Evalscript SIMPLE (Original - Para días puntuales) ---
 evalscript_raw = """
 //VERSION=3
 function setup() { return { input: ["NO2"], output: { bands: 1, sampleType: "FLOAT32" }, mosaicking: "SIMPLE" }; }
 function evaluatePixel(samples) { return [samples.NO2]; }
 """
 
-# --- Evalscript PROMEDIO (Nuevo - Mosaicking ORBIT) ---
+# --- Evalscript PROMEDIO (Nuevo - Mosaicking ORBIT - Para rangos y promedios) ---
 evalscript_mean_mosaic = """
 //VERSION=3
 function setup() {
@@ -614,14 +614,14 @@ def generar_mapa_comparativo(file_paths, aoi_path, producto, unidad, cmap, title
     """
     print(f"\n🗺️  Generando mapa comparativo para {producto}...")
     if not file_paths:
-        print("     No se encontraron archivos para el mapa comparativo.")
+        print("      No se encontraron archivos para el mapa comparativo.")
         return None
     
     try:
         gdf = gpd.read_file(aoi_path).dissolve()
         region_nombre = Path(aoi_path).stem.replace("_", " ").title()
         
-        print("     Calculando escala de color global...")
+        print("      Calculando escala de color global...")
         vmin, vmax = np.inf, -np.inf
         
         all_data = {} 
@@ -651,23 +651,23 @@ def generar_mapa_comparativo(file_paths, aoi_path, producto, unidad, cmap, title
                     vmin = min(vmin, np.nanmin(data))
                     vmax = max(vmax, np.nanmax(data))
                 except ValueError:
-                    print(f"     Advertencia: El polígono no se superpone con {file_path.name}, se omite.")
+                    print(f"      Advertencia: El polígono no se superpone con {file_path.name}, se omite.")
                     all_data[file_path] = {'data': None, 'extent': None}
 
         if not valid_extents: 
             print("❌ Error: No se encontraron datos válidos en ningún archivo para el mapa comparativo.")
             return None
             
-        print(f"     Escala global (Min/Max): {vmin:.3e} / {vmax:.3e}")
+        print(f"      Escala global (Min/Max): {vmin:.3e} / {vmax:.3e}")
         
         global_left = min(e[0] for e in valid_extents)
         global_right = max(e[1] for e in valid_extents)
         global_bottom = min(e[2] for e in valid_extents)
         global_top = max(e[3] for e in valid_extents)
-        print(f"     BBOX Global: [{global_left:.2f}, {global_bottom:.2f}, {global_right:.2f}, {global_top:.2f}]")
+        print(f"      BBOX Global: [{global_left:.2f}, {global_bottom:.2f}, {global_right:.2f}, {global_top:.2f}]")
         
         if target_crs and gdf.crs != target_crs:
-            print(f"     Reproyectando GeoJSON a {target_crs} para el ploteo...")
+            print(f"      Reproyectando GeoJSON a {target_crs} para el ploteo...")
             gdf_plot = gdf.to_crs(target_crs)
         else:
             gdf_plot = gdf
@@ -689,7 +689,7 @@ def generar_mapa_comparativo(file_paths, aoi_path, producto, unidad, cmap, title
         norm = Normalize(vmin=vmin, vmax=vmax)
         img = None 
         
-        print("     Ploteando mapas individuales...")
+        print("      Ploteando mapas individuales...")
         for i, file_path in enumerate(file_paths):
             ax = axs[i]
             plot_data = all_data[file_path]
@@ -868,10 +868,11 @@ def run_processing(params, cancel_event):
     # --- SELECCIÓN DE EVALSCRIPT ---
     # Si estamos en modos mensuales/anuales/rango, usamos el script de PROMEDIOS (Mean Mosaic)
     # Si es "dia" (puntual), mantenemos el script RAW (Simple Mosaic)
+    # --- MODIFICACIÓN: AÑADIDO 'rango' A LA LISTA ---
     use_mean_script = params['choice_mode'] in ['mes', 'anio', 'rango_meses', 'rango']
     script_to_use = evalscript_mean_mosaic if use_mean_script else evalscript_raw
     if use_mean_script:
-        print("ℹ️  Usando Evalscript de Promedios (Mosaicking ORBIT).")
+        print("ℹ️  Usando Evalscript de Promedios (Mosaicking ORBIT) [Modo Rango/Mensual].")
     else:
         print("ℹ️  Usando Evalscript Simple (Default).")
 
@@ -937,7 +938,7 @@ def run_processing(params, cancel_event):
                      print(f"❌ Error preparando fecha para descarga diaria: {e}")
                      exito_descarga = False
             else:
-                 # Modo Mensual (Default)
+                 # Modo Mensual (Default) - También aplica para 'rango' (usando el mes de inicio)
                  if 'month' in params:
                      exito_descarga = descargar_blh_era5(params['year'], params['month'], era5_area_coords, netcdf_file)
                  else:
@@ -1389,7 +1390,8 @@ class GeoApp:
         choice = self.date_choice.get()
         
         # --- MODIFICADO: Añadido 'dia' a la lista para habilitar la transformación ---
-        if choice in ['mes', 'anio', 'rango_meses', 'dia']:
+        # --- MODIFICADO: Añadido 'rango' a la lista para que funcione como mensual ---
+        if choice in ['mes', 'anio', 'rango_meses', 'dia', 'rango']:
             self.transform_checkbutton.config(state="normal")
             if self.do_transform.get():
                 self.transform_method_combo.config(state="readonly")
@@ -1581,8 +1583,13 @@ class GeoApp:
             start_date, end_date = start_date_obj.strftime('%Y-%m-%d'), end_date_obj.strftime('%Y-%m-%d')
             params['start_date'], params['end_date'] = start_date, end_date
             params['year'] = int(start_date[:4])
+            # --- CORRECCIÓN IMPORTANTE: ASIGNAR MES PARA QUE BLH FUNCIONE ---
+            # Se usa el mes de inicio para descargar el BLH promedio de ese mes.
+            params['month'] = start_date_obj.month 
+            # ----------------------------------------------------------------
             params['title_date'] = f"Rango de {start_date} a {end_date}"
             params['output_name'] = f"Datos_NO2_Rango_{start_date}_a_{end_date}"
+            params['output_name_blh'] = f"Datos_BLH_Rango_{start_date}_a_{end_date}"
             params['title_suffix'] = f"Rango {start_date} a {end_date}"
 
         elif choice == "anio":
@@ -1609,7 +1616,7 @@ class GeoApp:
             if self.region_mode.get() == "list":
                 region_nombre_archivo = self.region_combo.get()
                 if not region_nombre_archivo:
-                     raise ValueError("Por favor, seleccione una región de la lista.")
+                      raise ValueError("Por favor, seleccione una región de la lista.")
 
                 params['aoi_path'] = BASE_GEOJSON_PATH / f"{region_nombre_archivo}.geojson"
                 if not params['aoi_path'].exists():
