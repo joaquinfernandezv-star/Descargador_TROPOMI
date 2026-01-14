@@ -2,6 +2,14 @@
 
 Esta aplicación permite la descarga y procesamiento automatizado de datos satelitales (Sentinel-5P) y meteorológicos (ERA5) mediante una interfaz gráfica.
 
+### 0\. Librerías necesarias para funcionamiento
+
+Click derecho en el fondo dentro de la carpeta donde está alojado el archivo *Descargador_UI_NO2.py*, copiar, pegar y ejecutar la siguiente línea de código:
+
+```bash
+    python -m pip install tkcalendar matplotlib matplotlib-scalebar cmcrameri numpy pandas geopandas rasterio scipy contextily shapely sentinelhub pykrige cdsapi rioxarray netCDF4
+```
+
 ### 1\. Configuración Inicial
 
 Antes de ejecutar, asegúrate de tener las credenciales de **Copernicus Data Space** y **CDS API (Climate Data Store)** configuradas en tu entorno o en el script.
@@ -11,6 +19,7 @@ Antes de ejecutar, asegúrate de tener las credenciales de **Copernicus Data Spa
     python Descargador_UI_NO2.py
     ```
   * *Nota:* El script requiere una carpeta llamada `Regiones/` en el mismo directorio, que contenga los archivos `.geojson` de las zonas de interés.
+  * Guardar archivo *.cdsapirc* en la carpeta "C:\Users\{user}" para descargar información de las bases de ERA5.
 
 ### 2\. Flujo de Trabajo
 
