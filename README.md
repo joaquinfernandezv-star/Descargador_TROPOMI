@@ -1,75 +1,143 @@
-## 🚀 Uso de la Herramienta
+# 🛰️ Descargador y Procesador Sentinel-5P Multigas
 
-Esta aplicación permite la descarga y procesamiento automatizado de datos satelitales (Sentinel-5P) y meteorológicos (ERA5) mediante una interfaz gráfica.
+Esta aplicación es una herramienta integral escrita en Python para la descarga, procesamiento y análisis geoespacial de datos satelitales de Sentinel-5P y datos meteorológicos de ERA5.
 
-### 0\. Librerías necesarias para funcionamiento
+A diferencia de versiones anteriores limitadas solo a NO₂, esta versión Multigas soporta múltiples contaminantes atmosféricos, aplicando criterios físicos diferenciados para su tratamiento.
 
-Click derecho en el fondo dentro de la carpeta donde está alojado el archivo *Descargador_UI_NO2.py*, copiar, pegar y ejecutar la siguiente línea de código:
+## 📋 Características Principales
+
+* **Multi-Gas:** Soporte para NO₂, CO, O₃, SO₂, CH₄ y HCHO.
+* **Fusión de Datos:** Combina datos de columna satelital con la altura de la capa límite (BLH) de ERA5.
+* **Criterio Científico:** Discrimina entre gases confinados a la capa límite y gases de troposfera gruesa.
+* **Visualización:** Generación automática de mapas, histogramas y análisis de series temporales.
+* **Batch Processing:** Capacidad de procesar múltiples regiones geográficas en una sola ejecución.
+
+---
+
+## 🔬 Fundamento Científico: Conversión Columna-Superficie
+
+La herramienta permite convertir las densidades de columna (mol/m²) medidas por el satélite a concentraciones en superficie (ppb). Sin embargo, esta operación no es físicamente válida para todos los gases de la misma manera.
+
+La aplicación utiliza la ecuación general:
+
+$$C_{surf} = \frac{Columna_{sat}}{H_{mezcla}} \times Factores$$
+
+Donde $H_{mezcla}$ suele ser la BLH (*Boundary Layer Height*). Basado en la literatura científica reciente (Petetin et al., Savanets et al.), la herramienta clasifica los gases en dos grupos:
+
+### 🟢 Grupo 1: Gases Confinados a la Capa Límite (Transformación Recomendada)
+
+Para estos gases, usar la BLH como altura de mezcla es una aproximación razonable de primer orden, ya que sus fuentes son superficiales y su vida media es corta.
+
+| Gas | Nombre | Justificación |
+| :--- | :--- | :--- |
+| **NO₂** | Dióxido de Nitrógeno | La mayor parte de la masa troposférica se concentra en la PBL. El producto satelital está optimizado para la troposfera baja. |
+| **HCHO** | Formaldehído | Vida media corta (horas). Su producción está ligada a COV en superficie. Distribución vertical decrece rápido con la altitud. |
+| **SO₂** | Dióxido de Azufre | En contextos industriales/urbanos, se confina a la PBL. *Nota: No válido para plumas volcánicas inyectadas en la troposfera libre.* |
+
+### 🔴 Grupo 2: Gases de "Troposfera Gruesa" (Transformación Restringida)
+
+Para estos gases, dividir la columna total por la BLH sobreestima gravemente la concentración en superficie, ya que una gran parte de la masa del gas reside por encima de la capa límite.
+
+| Gas | Nombre | Comportamiento |
+| :--- | :--- | :--- |
+| **CO** | Monóxido de Carbono | Vida larga (semanas). Se transporta a la troposfera media/superior. |
+| **O₃** | Ozono | Perfil complejo con máximos en troposfera media y contribuciones estratosféricas. |
+| **CH₄** | Metano | Distribución vertical homogénea pero columna dominada por la troposfera libre. |
+
+> **⚠️ Nota de la UI:** Por defecto, la aplicación deshabilita la opción de transformación a superficie para el Grupo 2 (CO, O₃, CH₄) para evitar errores científicos, a menos que se introduzcan factores de corrección (*Shape Factors*) avanzados en el código.
+
+---
+
+## ⚙️ Instalación y Requisitos
+
+### 0. Prerrequisitos
+
+Se requiere Python 3.8+ instalado. Ejecuta el siguiente comando para instalar todas las dependencias geoespaciales y de interfaz gráfica:
 
 ```bash
-    python -m pip install tkcalendar matplotlib matplotlib-scalebar cmcrameri numpy pandas geopandas rasterio scipy contextily shapely sentinelhub pykrige cdsapi rioxarray netCDF4
+python -m pip install tkcalendar matplotlib matplotlib-scalebar cmcrameri numpy pandas geopandas rasterio scipy contextily shapely sentinelhub pykrige cdsapi rioxarray netCDF4
+
 ```
 
-### 1\. Configuración Inicial
+### 1. Credenciales
 
-Antes de ejecutar, asegúrate de tener las credenciales de **Copernicus Data Space** y **CDS API (Climate Data Store)** configuradas en tu entorno o en el script.
+El script requiere acceso a dos servicios de datos europeos. Debes configurar tus credenciales en el código o asegurarte de que los archivos de configuración existan en tu sistema:
 
-  * Ejecuta el script principal:
-    ```bash
-    python Descargador_UI_NO2.py
-    ```
-  * *Nota:* El script requiere una carpeta llamada `Regiones/` en el mismo directorio, que contenga los archivos `.geojson` de las zonas de interés.
-  * Guardar archivo *.cdsapirc* en la carpeta "C:\Users\{user}" para descargar información de las bases de ERA5.
+1. **Copernicus Data Space (SentinelHub):**
+* Regístrate en [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/).
+* Configura `sh_client_id` y `sh_client_secret` en el script (`Descargador_Multigas_UI.py`).
 
-### 2\. Flujo de Trabajo
 
-La interfaz se divide en 4 pasos secuenciales:
+2. **Climate Data Store (ERA5):**
+* Regístrate en CDS.
+* Crea un archivo `.cdsapirc` en tu carpeta de usuario (`C:\Users\{Usuario}\` o `~/.cdsapirc`) con tu URL y Key.
 
-#### 1\. Selección de Fecha
 
-Elige el rango temporal de análisis:
 
-  * **Mes/Año:** Para análisis mensuales estándar.
-  * **Año Completo:** Procesa los 12 meses de un año seleccionado.
-  * **Día Puntual:** Para eventos específicos (mantiene la resolución nativa diaria).
-  * **Rangos:** Permite definir periodos personalizados por días o meses.
+---
 
-#### 2\. Selección de Región
+## 🚀 Guía de Uso
 
-Define el área de interés (AOI):
+Ejecuta el script principal:
 
-  * **Lista Precargada:** Selecciona un polígono desde los archivos disponibles en la carpeta `Regiones/`.
-  * **Manual (BBox):** Ingresa coordenadas manuales (Latitud/Longitud mínimas y máximas) y asigna un nombre a la zona.
+```bash
+python Descargador_Multigas_UI.py
 
-#### 3\. Opciones de Procesamiento
+```
 
-Configura cómo se tratarán los datos:
+### Paso 1: Selección de Fecha 📅
 
-  * **Transformación a Superficie:** Convierte la columna troposférica de $NO_2$ a concentración en superficie (ppb).
-      * *Método H. Petetin:* Descarga dinámicamente la altura de la capa límite (BLH) de ERA5.
-      * *Método Savanets:* Usa una altura constante de 10 km.
-      * *Custom:* Permite ingresar un valor de altura fijo manual.
-  * **Re-escalado (Kriging):** Interpola los píxeles para suavizar la imagen y cubrir huecos.
-  * **Formatos de Salida:** Elige entre GeoTIFF, NetCDF4 o ASCII Grid.
-  * **Compresión:** Opción para comprimir los datos crudos en `.zip` al finalizar.
+Define el periodo temporal. El sistema soporta:
 
-#### 4\. Visualización y Ejecución
+* **Mes/Año:** Promedios mensuales (recomendado para reducir ruido).
+* **Día:** Eventos puntuales (sujeto a nubosidad).
+* **Rango:** Promedios sobre periodos personalizados.
 
-  * **Verificación de Nubosidad:** Usa el botón `☁️ Calcular % Nubes` para obtener una estimación rápida de la nubosidad en la zona antes de descargar.
-  * **Botones de Acción:**
-      * `Iniciar Proceso`: Ejecuta la configuración actual para la región seleccionada.
-      * `Descargar todas las regiones`: Ejecuta el proceso en bucle para **todos** los archivos `.geojson` disponibles en la carpeta.
+### Paso 2: Selección de Región 🌍
 
-### 📂 Salida de Datos
+* **Lista Precargada:** Archivos `.geojson` ubicados en la carpeta `Regiones/`.
+* **Manual:** Define un Bounding Box (Lat/Lon) directamente en la interfaz.
 
-Los resultados se guardan automáticamente en la carpeta `Resultados/`, organizados jerárquicamente por:
+### Paso 3: Opciones de Procesamiento 🛠️
 
-1.  **Año**
-2.  **Nombre de la Región**
-3.  **Tipo de Producto** (Modelo NO2, BLH, Cálculos de Concentración)
+Aquí es donde seleccionas el gas y la metodología:
 
-Cada ejecución genera mapas (`.png`), estadísticas (`.csv`) y los archivos ráster procesados.
+* **Gas a Procesar:** Selecciona NO₂, CO, O₃, SO₂, CH₄ o HCHO.
+* **Transformación a Superficie:**
+* *Disponible solo para Grupo 1 (NO₂, HCHO, SO₂).*
+* **Método Petetin (Recomendado):** Descarga BLH horario/mensual de ERA5 y calcula pixel a pixel.
+* **Método Savanets:** Asume una altura de mezcla constante (menos preciso).
 
-## 🔗 Acceso a Resultados en la Nube
-Puedes visualizar y descargar los ejemplos de resultados procesados en el siguiente enlace:
-👉 [Ver Carpeta de Resultados en Google Drive](https://drive.google.com/drive/folders/1L0KB46bhG3BF9sIIjKRkHEh8tWrlT_Y4?usp=sharing)
+
+* **Re-escalado (Kriging):** Interpola la imagen para suavizar pixelado y llenar huecos por nubes.
+* **Formatos:** GeoTIFF (estándar), NetCDF4 (científico), ASCII (legacy).
+
+### Paso 4: Ejecución y Visualización 📊
+
+* **Nubes:** Usa el botón `☁️ Calc %` para verificar si la imagen es viable antes de descargar.
+* **Iniciar Proceso:** Comienza la descarga y cálculo.
+* **Resultados:** Se guardan en la carpeta `Resultados/` estructurada por Año > Región > Producto.
+
+---
+
+## 📂 Estructura de Salida
+
+```text
+Resultados/
+├── Modelo/
+│   └── 2024/
+│       └── Santiago/
+│           └── Datos_NO2_Enero/       # (GeoTIFFs crudos del satélite)
+├── BLH/
+│   └── 2024/
+│       └── Santiago/
+│           └── Datos_BLH_Enero/       # (Datos meteorológicos ERA5)
+└── Calculos/
+    └── 2024/
+        └── Santiago/
+            └── Concentracion_NO2/     # (Producto Final en ppb)
+                ├── Mapa_Concentracion.png
+                ├── Estadisticas.csv
+                └── Raster_Final.tiff
+
+```
